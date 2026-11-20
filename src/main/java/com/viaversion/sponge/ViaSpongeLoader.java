@@ -36,12 +36,12 @@ import com.viaversion.viaversion.dump.PluginInfo;
 import com.viaversion.viaversion.libs.gson.JsonObject;
 import com.viaversion.viaversion.util.GsonUtil;
 import java.io.File;
+import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.logging.Logger;
-import java.util.stream.Collectors;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.spongepowered.api.Game;
 import org.spongepowered.api.Platform;
@@ -201,12 +201,30 @@ public final class ViaSpongeLoader implements ViaPlatform<Player> {
                 metadata.name().orElse("Unknown"),
                 metadata.version().toString(),
                 plugin.instance() != null ? plugin.instance().getClass().getCanonicalName() : "Unknown",
-                metadata.contributors().stream().map(PluginContributor::name).collect(Collectors.toList())
+                contributorNames(metadata)
             ));
         }
         platformSpecific.add("plugins", GsonUtil.getGson().toJsonTree(plugins));
 
         return platformSpecific;
+    }
+
+    private List<String> contributorNames(final PluginMetadata metadata) {
+        // PluginContributor changed from an interface to a record in Sponge API 18.
+        final Method contributorNameMethod;
+        try {
+            contributorNameMethod = PluginContributor.class.getMethod("name");
+        } catch (NoSuchMethodException ignored) {
+            return List.of();
+        }
+
+        final List<String> names = new ArrayList<>();
+        for (final PluginContributor contributor : metadata.contributors()) {
+            try {
+                names.add((String) contributorNameMethod.invoke(contributor));
+            } catch (ReflectiveOperationException ignored) { }
+        }
+        return names;
     }
 
     @Override
